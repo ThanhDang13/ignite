@@ -142,7 +142,12 @@ Aggregated into: daily stats, weekly report (Sunday), no-snooze streak.
 
 ## Implementation Notes
 
-### Sound System
+### Pre-Alarm System
+- **WorkManager Job:** Scheduled 15 minutes before main alarm via PreAlarmWorker
+- **Notification:** Shows alarm title with "Alarm in 15 minutes" header
+- **Actions:** Dismiss (cancels main alarm) and Snooze (cancels pre-alarm, allows main alarm)
+- **Conditional:** Only scheduled if `preAlarmEnabled` is true on alarm
+- **Safety:** Skips scheduling if pre-alarm time is already in the past
 - Custom sounds are persisted to Room database via `CustomSoundEntity`
 - `AudioPlaybackManager` is a singleton injected via Hilt across all screens
 - Sound selection UI in `core/ui/components/SoundSelection.kt`
@@ -174,7 +179,7 @@ Aggregated into: daily stats, weekly report (Sunday), no-snooze streak.
 - **Alarm Engine:** Create, edit, delete, schedule with AlarmManager
 - **Scheduling:** One-time, recurring (day-of-week), countdown alarms
 - **Snooze System:** Configurable snooze duration (default 10 min), persisted with alarm
-- **Pre-Alarm:** WorkManager notification at T−15 min
+- **Pre-Alarm:** WorkManager notification at T−15 min with dismiss/snooze actions
 - **Ring Engine:** ForegroundService with WakeLock, full-screen UI, snooze/dismiss
 - **Sound System:** 
   - Built-in sounds (default, notification, ringtone) from RingtoneManager
