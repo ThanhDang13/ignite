@@ -5,11 +5,11 @@
 This project uses OpenWolf for context management. Read and follow .wolf/OPENWOLF.md every session. Check .wolf/cerebrum.md before generating code. Check .wolf/anatomy.md before reading files.
 
 
-# CLAUDE.md — Alarm App Agent Instructions
+# CLAUDE.md — Ignite: Multi-Feature Time Management App
 
 ## Project Summary
 
-Android Kotlin alarm app. Feature-based modular monolith. CLI-only workflow (no Android Studio).
+Android Kotlin time management app (alarms, timer, stopwatch). Feature-based modular monolith with Material Design 3 UI. CLI-only workflow (no Android Studio). Emphasis on AlarmManager correctness, persistent state, and analytics.
 
 ## Core Rules
 
@@ -104,13 +104,49 @@ Aggregated into: daily stats, weekly report (Sunday), no-snooze streak.
 
 | Module | Responsibility |
 |---|---|
+| `core/common/` | Utilities: AlarmTimeCalculator, time helpers |
+| `core/notification/` | NotificationManager: channels, alarm + pre-alarm notifications |
 | `core/scheduler/` | AlarmScheduler interface only — no implementation |
-| `data/alarm_scheduler_impl/` | AlarmManager + WorkManager wiring |
+| `core/sound/` | AudioPlaybackManager singleton, SoundEngine, sound playback |
+| `core/ui/` | Shared Compose components, Material 3 theme, animations, tokens |
 | `data/alarm_db/` | Room entities, DAOs, migrations |
-| `data/alarm_repository/` | Single source of truth for alarm state |
-| `feature_ring/` | ForegroundService + full-screen UI |
-| `feature_alarm/` | Create / edit / list UI only |
-| `feature_stats/` | Read-only analytics queries + UI |
+| `data/alarm_repository/` | Single source of truth for alarm state, Alarm domain model |
+| `data/alarm_scheduler_impl/` | AlarmManager + WorkManager wiring, AlarmReceiver, PreAlarmWorker |
+| `feature/alarm/` | Create / edit / list alarms UI |
+| `feature/ring/` | ForegroundService + full-screen ring UI + snooze/dismiss |
+| `feature/stats/` | Analytics queries, weekly report generation, stats UI |
+| `feature/widget/` | Home screen widget provider + layout |
+| `feature/timer/` | Timer feature with countdown |
+| `feature/stopwatch/` | Stopwatch feature with lap tracking |
+| `feature/sleep/` | Sleep tracking (placeholder) |
+
+---
+
+## Implementation Notes
+
+### Sound System
+- Custom sounds are persisted to Room database via `CustomSoundEntity`
+- `AudioPlaybackManager` is a singleton injected via Hilt across all screens
+- Sound selection UI in `core/ui/components/SoundSelection.kt`
+- Volume ramping handled by `SoundEngine` with configurable curves
+
+### UI Architecture
+- All UI components centralized in `core/ui/` for consistency
+- Material Design 3 theming with light/dark mode support
+- Animations defined in `core/ui/animations/Animations.kt`
+- Spacing system uses 8dp grid via `Tokens.kt`
+- Wheel picker components for time selection in alarm creation
+
+### Statistics & Analytics
+- Events logged to `AlarmEventEntity` on every alarm state change
+- `StatsRepository` aggregates daily and weekly stats
+- Weekly report generated via `WeeklyReportWorker` (WorkManager)
+- `StatsCalculator` computes derived metrics (streak, consistency score)
+
+### Timer & Stopwatch
+- Separate feature modules with independent ViewModels
+- Timer: countdown with notification on completion
+- Stopwatch: lap tracking with formatted display
 
 ---
 
