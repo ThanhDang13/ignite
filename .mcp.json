@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "cocoindex-code": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "-e",
+        "COCOINDEX_CODE_HOST_CWD=${PWD}",
+        "cocoindex-code",
+        "ccc",
+        "mcp"
+      ]
+    }
+  }
+}
