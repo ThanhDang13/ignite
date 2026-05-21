@@ -4,6 +4,24 @@
 
 This project uses OpenWolf for context management. Read and follow .wolf/OPENWOLF.md every session. Check .wolf/cerebrum.md before generating code. Check .wolf/anatomy.md before reading files.
 
+# CocoIndex
+
+@mcp/cocoindex
+
+This project uses CocoIndex MCP for repository discovery.
+
+Use CocoIndex before recursive file reads.
+
+Use CocoIndex for:
+- symbol discovery
+- cross-module references
+- architecture navigation
+- semantic code search
+
+Read source files before making edits.
+
+Source files are authoritative if indexed context differs from repository state.
+
 
 # CLAUDE.md — Ignite: Multi-Feature Time Management App
 

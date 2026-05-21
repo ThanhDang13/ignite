@@ -44,6 +44,16 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name="com.example.alarm.data.scheduler.PreAlarmReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="com.example.alarm.DISMISS_PRE_ALARM" />
+                <action android:name="com.example.alarm.SNOOZE_PRE_ALARM" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name="com.example.alarm.feature.ring.RingService"
             android:exported="false"

@@ -7,6 +7,11 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.AlarmManagerCompat
+import androidx.work.BackoffPolicy
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.alarm.core.common.AlarmTimeCalculator
 import com.example.alarm.core.scheduler.AlarmScheduler
 import com.example.alarm.core.scheduler.ScheduleRequest
@@ -18,6 +23,7 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 class AlarmSchedulerImpl @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -87,6 +93,9 @@ class AlarmSchedulerImpl @Inject constructor(
                 Log.d("AlarmSchedulerImpl", "  Method: setAndAllowWhileIdle")
             }
             Log.d("AlarmSchedulerImpl", "Alarm ${request.alarmId} scheduled successfully")
+
+            // Schedule pre-alarm notification 15 minutes before
+            schedulePreAlarm(request.alarmId, request.triggerTimeMillis)
         } catch (e: SecurityException) {
             Log.e("AlarmSchedulerImpl", "SecurityException scheduling alarm ${request.alarmId}, falling back", e)
             alarmManager.setAndAllowWhileIdle(
@@ -96,6 +105,43 @@ class AlarmSchedulerImpl @Inject constructor(
             )
         } catch (e: Exception) {
             Log.e("AlarmSchedulerImpl", "Error scheduling alarm ${request.alarmId}", e)
+        }
+    }
+
+    private suspend fun schedulePreAlarm(alarmId: Long, triggerTimeMillis: Long) {
+        try {
+            val alarm = alarmRepository.getById(alarmId) ?: return
+            if (!alarm.preAlarmEnabled) return
+
+            val preAlarmTimeMillis = triggerTimeMillis - (15 * 60 * 1000) // 15 minutes before
+            val now = System.currentTimeMillis()
+
+            if (preAlarmTimeMillis <= now) {
+                Log.d("AlarmSchedulerImpl", "Pre-alarm time is in the past, skipping")
+                return
+            }
+
+            val delayMillis = preAlarmTimeMillis - now
+            val workData = Data.Builder()
+                .putLong("alarmId", alarmId)
+                .putString("alarmTitle", alarm.title)
+                .build()
+
+            val preAlarmWork = OneTimeWorkRequestBuilder<PreAlarmWorker>()
+                .setInitialDelay(delayMillis, TimeUnit.MILLISECONDS)
+                .setInputData(workData)
+                .addTag("pre_alarm_$alarmId")
+                .build()
+
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "pre_alarm_$alarmId",
+                ExistingWorkPolicy.REPLACE,
+                preAlarmWork
+            )
+
+            Log.d("AlarmSchedulerImpl", "Pre-alarm scheduled for alarm $alarmId in ${delayMillis / 1000} seconds")
+        } catch (e: Exception) {
+            Log.e("AlarmSchedulerImpl", "Error scheduling pre-alarm for $alarmId", e)
         }
     }
 

@@ -33,6 +33,7 @@ dependencies {
 
     implementation(project(":core:common"))
     implementation(project(":core:scheduler"))
+    implementation(project(":core:notification"))
     implementation(project(":data:alarm_db"))
     implementation(project(":data:alarm_repository"))
 }
