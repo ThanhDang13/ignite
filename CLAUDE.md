@@ -150,6 +150,88 @@ Aggregated into: daily stats, weekly report (Sunday), no-snooze streak.
 
 ---
 
+## Implementation Status (as of 2026-05-21)
+
+### ✅ Complete Features
+- **Alarm Engine:** Create, edit, delete, schedule with AlarmManager
+- **Scheduling:** One-time, recurring (day-of-week), countdown alarms
+- **Snooze System:** Configurable snooze duration (default 10 min), persisted with alarm
+- **Pre-Alarm:** WorkManager notification at T−15 min
+- **Ring Engine:** ForegroundService with WakeLock, full-screen UI, snooze/dismiss
+- **Sound System:** 
+  - Built-in sounds (default, notification, ringtone) from RingtoneManager
+  - Custom sound file picker and persistence to Room database
+  - AudioPlaybackManager singleton for centralized playback
+  - Sound selection in both alarm creation and global settings
+  - "App Default" option that resolves to global default at alarm time
+- **Theme System:** Light/Dark/System modes, persistent preference, dynamic switching
+- **Statistics:** Event logging (AlarmFired, AlarmDismissed, AlarmSnoozed), daily/weekly aggregation, no-snooze streak
+- **Widget:** Home screen widget showing next alarm
+- **Timer:** Countdown with MM:SS display, sound on completion, wheel picker input
+- **Stopwatch:** Count-up with HH:MM:SS.MS display, lap tracking
+- **UI/UX:** Material Design 3, animations, consistent spacing (8dp grid), dark mode support
+
+### 🚧 Placeholder (Not Implemented)
+- **Sleep Feature:** Bedtime reminders, sleep session tracking (placeholder only)
+
+---
+
+## Key Implementation Details
+
+### Sound Persistence Architecture
+- **CustomSoundEntity:** Room entity storing custom sounds (id, name, uri, createdAt)
+- **CustomSoundDao:** Database access with Flow support
+- **AudioPlaybackManager:** 
+  - Loads custom sounds from DB on init via runBlocking
+  - Persists/deletes via database operations
+  - Injected as @Singleton into AlarmViewModel and SettingsViewModel
+  - Ensures all screens access same singleton instance
+- **Sound Selection:** File picker via ActivityResultContracts.GetContent(), preview stops on dialog dismiss
+
+### Theme & Preferences System
+- **PreferencesEntity:** Room entity storing selectedSoundId and themeMode
+- **PreferencesRepository:** Singleton providing Flow-based reactive access
+- **ThemeViewModel:** Manages theme state, injected into MainActivity
+- **Dynamic Switching:** No app restart required, recomposition on preference change
+
+### Alarm Time Calculation
+- **resolveNextAlarmTime():** Unified function in AlarmTimeCalculator
+  - Accepts individual params (timeMillis, repeatDays, isCountdown, countdownDurationMillis, now)
+  - Avoids circular dependencies with data layer
+  - One-time alarms: auto-disable after firing, recalculate from current time if re-enabled
+  - Recurring alarms: always compute from current time + repeatDays set
+  - Never returns past timestamps
+
+### Snooze Implementation
+- **Snooze Duration:** Configurable per alarm via +/− buttons in CreateEditAlarmScreen
+- **UI Design:** Large 56dp buttons, centered layout, prominent display with "minutes" label
+- **Snooze Flow:** Stop sound → reschedule (now + snoozeMinutes) → increment count → log event → persist to DB
+
+### Custom Sound File Picker
+- **Integration:** ActivityResultContracts.GetContent() with rememberLauncherForActivityResult
+- **Callback:** Receives Uri, passed to AudioPlaybackManager.addCustomSound()
+- **State Refresh:** Use soundsRefreshTrigger to force recomposition after add/delete (derivedStateOf alone insufficient for mutable list changes)
+- **Cleanup:** Stop audio in onDismiss callback to prevent preview from continuing
+
+### App Default Sound Resolution
+- **Storage:** Save "app_default" as soundId in alarm
+- **Resolution:** At alarm fire time (RingService.playAlarm), resolve "app_default" to current global default from PreferencesRepository
+- **Benefit:** Alarms dynamically use whatever sound is set globally
+
+---
+
+## Database Schema (Current Version: 5)
+
+### Key Entities
+- **AlarmEntity:** id, title, timeMillis, isEnabled, repeatDays (JSON), isCountdown, countdownDurationMillis, soundId, snoozeMinutes, preAlarmEnabled
+- **AlarmEventEntity:** id, alarmId, eventType, timestamp
+- **CustomSoundEntity:** id, name, uri, createdAt
+- **PreferencesEntity:** id, selectedSoundId, themeMode, updatedAt
+- **SleepSessionEntity:** id, startTime, endTime, duration, quality, notes
+- **WeeklyReportEntity:** id, weekStartDate, totalAlarms, dismissedCount, snoozedCount, avgSnoozeCount, consistency, generatedAt
+
+---
+
 ## CLI Debug Commands
 
 ```bash
@@ -169,3 +251,44 @@ adb shell am start -n com.example.alarm/.MainActivity
 # Simulate boot (test BOOT_COMPLETED receiver)
 adb shell am broadcast -a android.intent.action.BOOT_COMPLETED -p com.example.alarm
 ```
+
+---
+
+## Known Constraints & Patterns
+
+### Do Not
+- Use `@ApplicationScoped` for repositories — use `@Singleton` from javax.inject
+- Use suspend functions for Compose state loading — use Flow-based queries with LaunchedEffect
+- Use `collectAsState()` in Compose — use `collectAsStateWithLifecycle()` for lifecycle safety
+- Rely on `derivedStateOf` alone for list updates from mutable singletons — manually refresh state after mutations
+- Forget to stop audio playback when dialog closes — use onDismiss callback or DisposableEffect
+
+### Do
+- Persist all alarm state changes to Room immediately before returning from handlers
+- Use Flow-based getByIdFlow() for Compose state management
+- Inject AudioPlaybackManager into ViewModels to ensure singleton access across all screens
+- Load custom sounds from DB on AudioPlaybackManager init via runBlocking
+- Use LaunchedEffect(alarmId) to load all alarm properties when editing
+- Resolve "app_default" soundId at alarm fire time, not at creation time
+
+---
+
+## Architecture Decisions
+
+1. **Feature-based Modular Monolith:** Scalability and independent testing without DDD overhead
+2. **Centralized AudioPlaybackManager:** Single source of truth for all audio playback
+3. **Room Database for Preferences:** Persistent storage survives app restarts and process death
+4. **Flow-based Reactive Updates:** UI responds immediately to preference changes
+5. **Manual Navigation:** State-based tab switching (no Compose Navigation) — simpler for 5 tabs
+6. **Wheel Picker UX:** Vertical scroll wheel for time selection — more intuitive than manual input
+7. **Immediate DB Persistence:** All state changes persisted before returning from handlers (AlarmManager correctness priority)
+
+---
+
+## Next Steps for Future Sessions
+
+1. **Sleep Feature:** Implement bedtime reminders and sleep session tracking (currently placeholder)
+2. **Testing:** Manual device testing of sound persistence, theme switching, alarm scheduling
+3. **Performance:** Profile and optimize if needed (currently builds in ~5s)
+4. **Additional Polish:** UI refinements, accessibility improvements
+5. **Documentation:** Add inline code comments for complex logic
