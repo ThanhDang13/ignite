@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.alarm.core.common.AlarmTimeCalculator
@@ -33,15 +34,6 @@ fun AlarmListScreen(
     val alarms by viewModel.alarms.collectAsStateWithLifecycle()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Alarms") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
-                )
-            )
-        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNavigateToCreate,
@@ -65,44 +57,56 @@ fun AlarmListScreen(
                 )
             }
         } else {
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(Spacing.spacing4),
-                verticalArrangement = Arrangement.spacedBy(Spacing.spacing3)
             ) {
-                items(alarms) { alarm ->
-                    var isVisible by remember { mutableStateOf(false) }
-                    val alpha = remember { androidx.compose.animation.core.Animatable(0f) }
+                Text(
+                    text = "Alarms",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(Spacing.spacing4)
+                )
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = Spacing.spacing4),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.spacing3)
+                ) {
+                    items(alarms) { alarm ->
+                        var isVisible by remember { mutableStateOf(false) }
+                        val alpha = remember { androidx.compose.animation.core.Animatable(0f) }
 
-                    LaunchedEffect(Unit) {
-                        isVisible = true
-                        alpha.animateTo(
-                            targetValue = 1f,
-                            animationSpec = tween(
-                                durationMillis = AnimationDurations.durationMedium.inWholeMilliseconds.toInt(),
-                                easing = EaseInOutCubic
+                        LaunchedEffect(Unit) {
+                            isVisible = true
+                            alpha.animateTo(
+                                targetValue = 1f,
+                                animationSpec = tween(
+                                    durationMillis = AnimationDurations.durationMedium.inWholeMilliseconds.toInt(),
+                                    easing = EaseInOutCubic
+                                )
                             )
+                        }
+
+                        AlarmListItem(
+                            alarm = alarm,
+                            onToggle = { enabled ->
+                                viewModel.toggleAlarm(alarm.id, enabled)
+                            },
+                            onDelete = {
+                                viewModel.deleteAlarm(alarm.id)
+                            },
+                            onClick = {
+                                onNavigateToEdit(alarm.id)
+                            },
+                            modifier = Modifier.graphicsLayer(alpha = alpha.value)
                         )
                     }
-
-                    AlarmListItem(
-                        alarm = alarm,
-                        onToggle = { enabled ->
-                            viewModel.toggleAlarm(alarm.id, enabled)
-                        },
-                        onDelete = {
-                            viewModel.deleteAlarm(alarm.id)
-                        },
-                        onClick = {
-                            onNavigateToEdit(alarm.id)
-                        },
-                        modifier = Modifier.graphicsLayer(alpha = alpha.value)
-                    )
-                }
-                item {
-                    Spacer(modifier = Modifier.height(Spacing.spacing6))
+                    item {
+                        Spacer(modifier = Modifier.height(Spacing.spacing6))
+                    }
                 }
             }
         }

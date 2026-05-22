@@ -30,9 +30,10 @@
 
         <activity
             android:name="com.example.alarm.feature.ring.RingActivity"
-            android:exported="false"
+            android:exported="true"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
+            android:taskAffinity="com.example.alarm.ring"
             android:theme="@style/Theme.AlarmApp" />
 
         <receiver
@@ -57,7 +58,7 @@
 
         <service
             android:name="com.example.alarm.feature.ring.RingService"
-            android:exported="false"
+            android:exported="true"
             android:foregroundServiceType="mediaPlayback" />
 
         <receiver

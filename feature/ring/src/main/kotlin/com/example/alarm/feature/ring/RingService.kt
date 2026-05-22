@@ -50,6 +50,8 @@ class RingService : Service() {
     private var soundId: String = "default"
     private var vibrateEnabled: Boolean = true
 
+    private var vibrator: Vibrator? = null
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("RingService", "Service started with action: ${intent?.action}")
 
@@ -75,6 +77,8 @@ class RingService : Service() {
                 title = intent?.getStringExtra("title") ?: "Alarm"
                 soundId = intent?.getStringExtra("soundId") ?: "default"
                 vibrateEnabled = intent?.getBooleanExtra("vibrateEnabled", true) ?: true
+
+                vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator
 
                 startForeground()
                 playAlarm()
@@ -104,7 +108,11 @@ class RingService : Service() {
             putExtra("alarmId", alarmId)
             putExtra("title", title)
             putExtra("timeMillis", System.currentTimeMillis())
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            )
         }
         startActivity(ringIntent)
     }
@@ -150,6 +158,7 @@ class RingService : Service() {
     fun dismiss() {
         serviceScope.launch {
             try {
+                stopVibration()
                 audioPlaybackManager.stop()
                 alarmRepository.logAlarmEvent(alarmId, "AlarmDismissed")
 
@@ -168,6 +177,7 @@ class RingService : Service() {
     fun snooze() {
         serviceScope.launch {
             try {
+                stopVibration()
                 audioPlaybackManager.stop()
 
                 val alarm = alarmRepository.getById(alarmId)
@@ -192,6 +202,14 @@ class RingService : Service() {
             } catch (e: Exception) {
                 Log.e("RingService", "Error snoozing alarm", e)
             }
+        }
+    }
+
+    private fun stopVibration() {
+        try {
+            vibrator?.cancel()
+        } catch (e: Exception) {
+            Log.e("RingService", "Error stopping vibration", e)
         }
     }
 

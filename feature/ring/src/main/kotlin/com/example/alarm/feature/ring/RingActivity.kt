@@ -26,13 +26,21 @@ class RingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Show over lock screen
+        // Show over lock screen and other apps
         window.addFlags(
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
             WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+            WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON or
+            WindowManager.LayoutParams.FLAG_FULLSCREEN
         )
+
+        // For Android 10+, set layout in front of IME
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        }
 
         val alarmId = intent.getLongExtra("alarmId", -1L)
         val title = intent.getStringExtra("title") ?: "Alarm"
@@ -48,15 +56,15 @@ class RingActivity : ComponentActivity() {
                     onDismiss = {
                         activityScope.launch {
                             audioPlaybackManager.stop()
+                            sendActionToService(ACTION_DISMISS, alarmId)
                         }
-                        sendActionToService(ACTION_DISMISS, alarmId)
                         finish()
                     },
                     onSnooze = {
                         activityScope.launch {
                             audioPlaybackManager.stop()
+                            sendActionToService(ACTION_SNOOZE, alarmId)
                         }
-                        sendActionToService(ACTION_SNOOZE, alarmId)
                         finish()
                     }
                 )
