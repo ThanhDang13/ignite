@@ -12,6 +12,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import java.io.File
 
 data class Sound(
     val id: String,
@@ -43,10 +44,11 @@ class AudioPlaybackManager @Inject constructor(
         runBlocking {
             val customSoundEntities = database.customSoundDao().getAll()
             customSounds.addAll(customSoundEntities.map { entity ->
+                val soundFile = File(entity.uri)
                 Sound(
                     id = entity.id,
                     name = entity.name,
-                    uri = Uri.parse(entity.uri),
+                    uri = Uri.fromFile(soundFile),
                     isCustom = true
                 )
             })
@@ -56,20 +58,36 @@ class AudioPlaybackManager @Inject constructor(
     fun getAvailableSounds(): List<Sound> = bundledSounds + customSounds
 
     fun addCustomSound(name: String, uri: Uri): Sound {
+        val soundId = "custom_${System.currentTimeMillis()}"
+        val soundFile = File(context.filesDir, "$soundId.m4a")
+
+        // Copy audio file from content Uri to app private storage
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                soundFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            throw RuntimeException("Failed to save custom sound", e)
+        }
+
         val sound = Sound(
-            id = "custom_${System.currentTimeMillis()}",
+            id = soundId,
             name = name,
-            uri = uri,
+            uri = Uri.fromFile(soundFile),
             isCustom = true
         )
         customSounds.add(sound)
-        // Persist to database
+
+        // Persist to database (store file path, not Uri)
         runBlocking {
             database.customSoundDao().insert(
                 CustomSoundEntity(
                     id = sound.id,
                     name = sound.name,
-                    uri = sound.uri.toString()
+                    uri = soundFile.absolutePath
                 )
             )
         }
@@ -81,6 +99,11 @@ class AudioPlaybackManager @Inject constructor(
         // Remove from database
         runBlocking {
             database.customSoundDao().deleteById(soundId)
+            // Delete the actual file
+            val soundFile = File(context.filesDir, "$soundId.m4a")
+            if (soundFile.exists()) {
+                soundFile.delete()
+            }
         }
     }
 

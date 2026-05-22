@@ -10,5 +10,6 @@ data class Alarm(
     val countdownDurationMillis: Long?,
     val soundId: String,
     val snoozeMinutes: Int,
-    val preAlarmEnabled: Boolean
+    val preAlarmEnabled: Boolean,
+    val vibrateEnabled: Boolean = true
 )

@@ -85,7 +85,8 @@ class AlarmRepository @Inject constructor(
             countdownDurationMillis = countdownDurationMillis,
             soundId = soundId,
             snoozeMinutes = snoozeMinutes,
-            preAlarmEnabled = preAlarmEnabled
+            preAlarmEnabled = preAlarmEnabled,
+            vibrateEnabled = vibrateEnabled
         )
     }
 
@@ -108,7 +109,8 @@ class AlarmRepository @Inject constructor(
             countdownDurationMillis = countdownDurationMillis,
             soundId = soundId,
             snoozeMinutes = snoozeMinutes,
-            preAlarmEnabled = preAlarmEnabled
+            preAlarmEnabled = preAlarmEnabled,
+            vibrateEnabled = vibrateEnabled
         )
     }
 }

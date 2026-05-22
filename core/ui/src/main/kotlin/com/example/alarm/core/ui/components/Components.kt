@@ -15,9 +15,11 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -293,5 +295,141 @@ fun StatCard(
                 }
             }
         }
+    }
+}
+
+// Repeat Selection Component
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun RepeatSelectionDialog(
+    selectedRepeatType: String,
+    selectedCustomDays: Set<Int>,
+    onRepeatTypeSelected: (String) -> Unit,
+    onCustomDaysSelected: (Set<Int>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val repeatOptions = listOf(
+        "once" to "Once",
+        "daily" to "Daily",
+        "weekdays" to "Mon - Fri",
+        "custom" to "Custom"
+    )
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Repeat",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.spacing2)
+            ) {
+                repeatOptions.forEach { (value, label) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onRepeatTypeSelected(value)
+                                if (value != "custom") {
+                                    onDismiss()
+                                }
+                            }
+                            .padding(vertical = Spacing.spacing3),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = selectedRepeatType == value,
+                            onClick = {
+                                onRepeatTypeSelected(value)
+                                if (value != "custom") {
+                                    onDismiss()
+                                }
+                            }
+                        )
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(start = Spacing.spacing3)
+                        )
+                    }
+                }
+
+                if (selectedRepeatType == "custom") {
+                    Divider(modifier = Modifier.padding(vertical = Spacing.spacing3))
+                    Text(
+                        "Select Days",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = Spacing.spacing2)
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = Spacing.spacing2),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.spacing1)
+                    ) {
+                        listOf(
+                            "S" to 1,
+                            "M" to 2,
+                            "T" to 3,
+                            "W" to 4,
+                            "T" to 5,
+                            "F" to 6,
+                            "S" to 7
+                        ).forEach { (label, day) ->
+                            FilterChip(
+                                selected = selectedCustomDays.contains(day),
+                                onClick = {
+                                    onCustomDaysSelected(
+                                        if (selectedCustomDays.contains(day)) {
+                                            selectedCustomDays - day
+                                        } else {
+                                            selectedCustomDays + day
+                                        }
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        label,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.Button(onClick = onDismiss) {
+                Text("Done")
+            }
+        }
+    )
+}
+
+// Helper function to convert repeat type and days to display text
+fun getRepeatDisplayText(repeatType: String, customDays: Set<Int>): String {
+    return when (repeatType) {
+        "once" -> "Once"
+        "daily" -> "Daily"
+        "weekdays" -> "Mon - Fri"
+        "custom" -> {
+            if (customDays.isEmpty()) "Never" else {
+                val dayLabels = mapOf(
+                    1 to "S", 2 to "M", 3 to "T", 4 to "W",
+                    5 to "T", 6 to "F", 7 to "S"
+                )
+                customDays.sorted().map { dayLabels[it] ?: "" }.joinToString(", ")
+            }
+        }
+        else -> "Once"
     }
 }

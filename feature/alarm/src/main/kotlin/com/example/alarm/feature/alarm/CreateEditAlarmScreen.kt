@@ -2,12 +2,14 @@ package com.example.alarm.feature.alarm
 
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,12 +37,15 @@ fun CreateEditAlarmScreen(
     var selectedHour by remember { mutableStateOf(7) }
     var selectedMinute by remember { mutableStateOf(0) }
     var repeatDays by remember { mutableStateOf(setOf<Int>()) }
+    var repeatType by remember { mutableStateOf("once") }
     var isCountdown by remember { mutableStateOf(false) }
     var countdownMinutes by remember { mutableStateOf(30) }
     var preAlarmEnabled by remember { mutableStateOf(true) }
     var snoozeMinutes by remember { mutableStateOf(10) }
     var selectedSoundId by remember { mutableStateOf("default") }
+    var vibrateEnabled by remember { mutableStateOf(true) }
     var showSoundDialog by remember { mutableStateOf(false) }
+    var showRepeatDialog by remember { mutableStateOf(false) }
     var appDefaultSoundId by remember { mutableStateOf("default") }
 
     val scope = rememberCoroutineScope()
@@ -75,6 +80,13 @@ fun CreateEditAlarmScreen(
                     selectedHour = calendar.get(Calendar.HOUR_OF_DAY)
                     selectedMinute = calendar.get(Calendar.MINUTE)
                     repeatDays = alarm.repeatDays
+                    // Determine repeat type from repeatDays
+                    repeatType = when {
+                        repeatDays.isEmpty() -> "once"
+                        repeatDays == setOf(2, 3, 4, 5, 6) -> "weekdays"
+                        repeatDays.size == 7 -> "daily"
+                        else -> "custom"
+                    }
                     isCountdown = alarm.isCountdown
                     countdownMinutes = if (alarm.countdownDurationMillis != null) {
                         (alarm.countdownDurationMillis!! / 60 / 1000).toInt()
@@ -84,6 +96,7 @@ fun CreateEditAlarmScreen(
                     preAlarmEnabled = alarm.preAlarmEnabled
                     snoozeMinutes = alarm.snoozeMinutes
                     selectedSoundId = alarm.soundId
+                    vibrateEnabled = alarm.vibrateEnabled
                 }
             }
         }
@@ -218,33 +231,57 @@ fun CreateEditAlarmScreen(
                         .fillMaxWidth()
                         .padding(Spacing.spacing5)
                 ) {
-                    Text(
-                        "Repeat",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(bottom = Spacing.spacing3)
-                    )
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.spacing2)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showRepeatDialog = true }
+                            .padding(Spacing.spacing2),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        listOf("S" to 1, "M" to 2, "T" to 3, "W" to 4, "T" to 5, "F" to 6, "S" to 7).forEach { (label, day) ->
-                            FilterChip(
-                                selected = repeatDays.contains(day),
-                                onClick = {
-                                    repeatDays = if (repeatDays.contains(day)) {
-                                        repeatDays - day
-                                    } else {
-                                        repeatDays + day
-                                    }
-                                },
-                                label = { Text(label, style = MaterialTheme.typography.labelSmall) },
-                                modifier = Modifier.weight(1f)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Repeat",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                com.example.alarm.core.ui.components.getRepeatDisplayText(repeatType, repeatDays),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = Spacing.spacing1)
                             )
                         }
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.ArrowForward,
+                            contentDescription = "Edit repeat",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
+            }
+
+            if (showRepeatDialog) {
+                com.example.alarm.core.ui.components.RepeatSelectionDialog(
+                    selectedRepeatType = repeatType,
+                    selectedCustomDays = repeatDays,
+                    onRepeatTypeSelected = { newType ->
+                        repeatType = newType
+                        // Update repeatDays based on selected type
+                        repeatDays = when (newType) {
+                            "once" -> setOf()
+                            "daily" -> (1..7).toSet()
+                            "weekdays" -> setOf(2, 3, 4, 5, 6)
+                            "custom" -> repeatDays
+                            else -> setOf()
+                        }
+                    },
+                    onCustomDaysSelected = { days ->
+                        repeatDays = days
+                    },
+                    onDismiss = { showRepeatDialog = false }
+                )
             }
 
             Card(
@@ -348,6 +385,36 @@ fun CreateEditAlarmScreen(
                         Switch(
                             checked = preAlarmEnabled,
                             onCheckedChange = { preAlarmEnabled = it }
+                        )
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = Spacing.spacing6),
+                shape = RoundedCornerShape(Corners.cornerLarge),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(Spacing.spacing5)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Vibrate",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Switch(
+                            checked = vibrateEnabled,
+                            onCheckedChange = { vibrateEnabled = it }
                         )
                     }
                 }
@@ -511,7 +578,8 @@ fun CreateEditAlarmScreen(
                             countdownDurationMillis = if (isCountdown) countdownMinutes * 60 * 1000L else null,
                             snoozeMinutes = snoozeMinutes,
                             preAlarmEnabled = preAlarmEnabled,
-                            soundId = selectedSoundId
+                            soundId = selectedSoundId,
+                            vibrateEnabled = vibrateEnabled
                         )
                     } else {
                         viewModel.updateAlarm(
@@ -525,7 +593,8 @@ fun CreateEditAlarmScreen(
                                 countdownDurationMillis = if (isCountdown) countdownMinutes * 60 * 1000L else null,
                                 soundId = selectedSoundId,
                                 snoozeMinutes = snoozeMinutes,
-                                preAlarmEnabled = preAlarmEnabled
+                                preAlarmEnabled = preAlarmEnabled,
+                                vibrateEnabled = vibrateEnabled
                             )
                         )
                     }

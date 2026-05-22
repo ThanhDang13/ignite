@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.Vibrator
 import android.util.Log
 import com.example.alarm.core.common.AlarmTimeCalculator
 import com.example.alarm.core.notification.NotificationManager
@@ -47,6 +48,7 @@ class RingService : Service() {
     private var alarmId: Long = -1L
     private var title: String = "Alarm"
     private var soundId: String = "default"
+    private var vibrateEnabled: Boolean = true
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("RingService", "Service started with action: ${intent?.action}")
@@ -72,6 +74,7 @@ class RingService : Service() {
                 alarmId = intent?.getLongExtra("alarmId", -1L) ?: -1L
                 title = intent?.getStringExtra("title") ?: "Alarm"
                 soundId = intent?.getStringExtra("soundId") ?: "default"
+                vibrateEnabled = intent?.getBooleanExtra("vibrateEnabled", true) ?: true
 
                 startForeground()
                 playAlarm()
@@ -117,9 +120,30 @@ class RingService : Service() {
                 }
                 audioPlaybackManager.play(soundToPlay, loop = true)
                 audioPlaybackManager.rampVolume(durationMs = 3000, targetVolume = 1f)
+
+                if (vibrateEnabled) {
+                    startVibration()
+                }
             } catch (e: Exception) {
                 Log.e("RingService", "Error playing alarm", e)
             }
+        }
+    }
+
+    private fun startVibration() {
+        try {
+            val vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator
+            if (vibrator?.hasVibrator() == true) {
+                val pattern = longArrayOf(0, 500, 200, 500, 200, 500)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createWaveform(pattern, 0))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(pattern, 0)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("RingService", "Error starting vibration", e)
         }
     }
 

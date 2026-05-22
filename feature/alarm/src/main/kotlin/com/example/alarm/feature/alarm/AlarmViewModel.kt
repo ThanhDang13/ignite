@@ -37,7 +37,8 @@ class AlarmViewModel @Inject constructor(
         countdownDurationMillis: Long? = null,
         soundId: String = "default",
         snoozeMinutes: Int = 10,
-        preAlarmEnabled: Boolean = true
+        preAlarmEnabled: Boolean = true,
+        vibrateEnabled: Boolean = true
     ) {
         viewModelScope.launch {
             val alarm = Alarm(
@@ -50,7 +51,8 @@ class AlarmViewModel @Inject constructor(
                 countdownDurationMillis = countdownDurationMillis,
                 soundId = soundId,
                 snoozeMinutes = snoozeMinutes,
-                preAlarmEnabled = preAlarmEnabled
+                preAlarmEnabled = preAlarmEnabled,
+                vibrateEnabled = vibrateEnabled
             )
 
             val alarmId = alarmRepository.create(alarm)

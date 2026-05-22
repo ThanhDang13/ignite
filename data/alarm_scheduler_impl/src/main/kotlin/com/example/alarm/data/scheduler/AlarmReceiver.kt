@@ -103,6 +103,7 @@ class AlarmReceiver : BroadcastReceiver() {
             putExtra("alarmId", alarmId)
             putExtra("title", alarm.title)
             putExtra("soundId", alarm.soundId)
+            putExtra("vibrateEnabled", alarm.vibrateEnabled)
         }
         context.startForegroundService(ringIntent)
         Log.d("AlarmReceiver", "RingService started successfully")

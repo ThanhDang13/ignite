@@ -16,6 +16,7 @@ data class AlarmEntity(
     val soundId: String,
     val snoozeMinutes: Int,
     val preAlarmEnabled: Boolean,
+    val vibrateEnabled: Boolean = true,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
