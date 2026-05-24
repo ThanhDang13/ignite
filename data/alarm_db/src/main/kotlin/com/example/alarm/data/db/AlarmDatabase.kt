@@ -24,7 +24,7 @@ import com.example.alarm.data.db.entity.WeeklyReportEntity
         PreferencesEntity::class,
         CustomSoundEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AlarmDatabase : RoomDatabase() {

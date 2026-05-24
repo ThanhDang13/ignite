@@ -8,6 +8,7 @@ import android.util.Log
 import com.example.alarm.core.common.AlarmTimeCalculator
 import com.example.alarm.core.scheduler.ScheduleRequest
 import com.example.alarm.data.repository.AlarmRepository
+import com.example.alarm.data.repository.SleepSessionRepository
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -23,6 +24,9 @@ class AlarmReceiver : BroadcastReceiver() {
 
     @Inject
     lateinit var alarmScheduler: AlarmSchedulerImpl
+
+    @Inject
+    lateinit var sleepSessionRepository: SleepSessionRepository
 
     override fun onReceive(context: Context, intent: Intent) {
         Log.d("AlarmReceiver", "========================================")
@@ -152,6 +156,10 @@ class AlarmReceiver : BroadcastReceiver() {
                 )
             )
             Log.d("AlarmReceiver", "Rescheduled repeating alarm $alarmId for $nextTrigger")
+
+            // Start a new sleep session for the next occurrence
+            sleepSessionRepository.startSleepSession(alarmId)
+            Log.d("AlarmReceiver", "Started new sleep session for recurring alarm $alarmId")
         } else {
             Log.d("AlarmReceiver", "One-time alarm detected, auto-disabling")
             val disabledAlarm = alarm.copy(isEnabled = false)

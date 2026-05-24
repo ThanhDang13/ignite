@@ -8,6 +8,7 @@ import com.example.alarm.core.sound.AudioPlaybackManager
 import com.example.alarm.data.repository.Alarm
 import com.example.alarm.data.repository.AlarmRepository
 import com.example.alarm.data.repository.PreferencesRepository
+import com.example.alarm.data.repository.SleepSessionRepository
 import com.example.alarm.data.scheduler.AlarmSchedulerImpl
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 class AlarmViewModel @Inject constructor(
     private val alarmRepository: AlarmRepository,
     private val alarmScheduler: AlarmSchedulerImpl,
+    private val sleepSessionRepository: SleepSessionRepository,
     val audioPlaybackManager: AudioPlaybackManager,
     val preferencesRepository: PreferencesRepository
 ) : ViewModel() {
@@ -64,12 +66,15 @@ class AlarmViewModel @Inject constructor(
             )
 
             scheduleAlarm(alarmId, nextTrigger)
+            sleepSessionRepository.startSleepSession(alarmId)
         }
     }
 
     fun updateAlarm(alarm: Alarm) {
         viewModelScope.launch {
+            val oldAlarm = alarmRepository.getById(alarm.id)
             alarmRepository.update(alarm)
+
             if (alarm.isEnabled) {
                 val nextTrigger = AlarmTimeCalculator.resolveNextAlarmTime(
                     timeMillis = alarm.timeMillis,
@@ -78,8 +83,15 @@ class AlarmViewModel @Inject constructor(
                     countdownDurationMillis = alarm.countdownDurationMillis
                 )
                 scheduleAlarm(alarm.id, nextTrigger)
+
+                // Start new sleep session if alarm was previously disabled
+                if (oldAlarm?.isEnabled == false) {
+                    sleepSessionRepository.startSleepSession(alarm.id)
+                }
             } else {
                 alarmScheduler.cancel(alarm.id)
+                // Cancel pending sleep session if alarm is disabled
+                sleepSessionRepository.cancelSleepSession(alarm.id)
             }
         }
     }
@@ -88,6 +100,7 @@ class AlarmViewModel @Inject constructor(
         viewModelScope.launch {
             alarmRepository.delete(id)
             alarmScheduler.cancel(id)
+            sleepSessionRepository.cancelSleepSession(id)
         }
     }
 
@@ -105,8 +118,10 @@ class AlarmViewModel @Inject constructor(
                     countdownDurationMillis = updated.countdownDurationMillis
                 )
                 scheduleAlarm(id, nextTrigger)
+                sleepSessionRepository.startSleepSession(id)
             } else {
                 alarmScheduler.cancel(id)
+                sleepSessionRepository.cancelSleepSession(id)
             }
         }
     }

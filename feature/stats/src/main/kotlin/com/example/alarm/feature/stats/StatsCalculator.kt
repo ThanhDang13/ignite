@@ -95,8 +95,10 @@ object StatsCalculator {
     }
 
     private fun calculateConsistencyScore(firedEvents: List<AlarmEventEntity>): Float {
-        if (firedEvents.size < 2) return 100f
+        // Need at least 3 data points for meaningful consistency calculation
+        if (firedEvents.size < 3) return 0f
 
+        // Extract wake times in minutes since midnight
         val times = firedEvents.map { event ->
             Calendar.getInstance().apply {
                 timeInMillis = event.timestamp
@@ -105,12 +107,25 @@ object StatsCalculator {
             }
         }
 
+        // Calculate average wake time
         val avgTime = times.average()
-        val variance = times.map { (it - avgTime) * (it - avgTime) }.average()
-        val stdDev = kotlin.math.sqrt(variance)
 
-        val maxDeviation = 120f // 2 hours in minutes
-        val score = 100f - (stdDev.toFloat() / maxDeviation * 100f).coerceIn(0f, 100f)
+        // Calculate average absolute deviation from mean
+        val avgDeviation = times.map { kotlin.math.abs(it - avgTime) }.average()
+
+        // Define consistency thresholds (in minutes)
+        // <= 5 min deviation = near perfect (95-100%)
+        // 15 min deviation = good (80%)
+        // 30 min deviation = moderate (60%)
+        // 60 min deviation = poor (30%)
+        // >= 120 min deviation = very poor (0%)
+
+        val maxDeviation = 120.0 // 2 hours
+
+        // Convert deviation to score (inverse relationship)
+        // Lower deviation = higher score
+        val normalizedDeviation = (avgDeviation / maxDeviation).coerceIn(0.0, 1.0)
+        val score = (100.0 * (1.0 - normalizedDeviation)).toFloat()
 
         return score.coerceIn(0f, 100f)
     }

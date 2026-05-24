@@ -16,8 +16,8 @@ import com.example.alarm.core.scheduler.ScheduleRequest
 import com.example.alarm.core.sound.AudioPlaybackManager
 import com.example.alarm.data.repository.AlarmRepository
 import com.example.alarm.data.repository.PreferencesRepository
+import com.example.alarm.data.repository.SleepSessionRepository
 import com.example.alarm.data.scheduler.AlarmSchedulerImpl
-import com.example.alarm.feature.stats.StatsRepository
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -35,7 +35,7 @@ class RingService : Service() {
     @Inject lateinit var alarmRepository: AlarmRepository
     @Inject lateinit var preferencesRepository: PreferencesRepository
     @Inject lateinit var alarmScheduler: AlarmSchedulerImpl
-    @Inject lateinit var statsRepository: StatsRepository
+    @Inject lateinit var sleepSessionRepository: SleepSessionRepository
 
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
@@ -231,8 +231,7 @@ class RingService : Service() {
             try {
                 if (alarmId != -1L) {
                     alarmRepository.logAlarmEvent(alarmId, "AlarmDismissed")
-                    val wakeTimeMillis = System.currentTimeMillis()
-                    statsRepository.inferSleepSession(wakeTimeMillis)
+                    sleepSessionRepository.completeSleepSession(alarmId)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error in dismiss persistence", e)

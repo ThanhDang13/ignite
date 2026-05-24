@@ -34,6 +34,7 @@ android {
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
     implementation(project(":data:alarm_db"))
+    implementation(project(":data:alarm_repository"))
     implementation(project(":core:ui"))
 
     // Room

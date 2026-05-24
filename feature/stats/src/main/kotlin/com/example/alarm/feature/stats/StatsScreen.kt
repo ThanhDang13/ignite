@@ -176,7 +176,7 @@ fun StatsCard(stats: AlarmStats) {
             Divider(color = MaterialTheme.colorScheme.outlineVariant)
             StatRow("No-Snooze Streak", "${stats.noSnoozeStreak} days")
             Divider(color = MaterialTheme.colorScheme.outlineVariant)
-            StatRow("Wake Consistency", "${(stats.wakeConsistencyScore * 100).toInt()}%")
+            StatRow("Wake Consistency", "${stats.wakeConsistencyScore.toInt()}%")
         }
     }
 }
@@ -236,7 +236,7 @@ fun WeeklyReportCard(report: WeeklyReportEntity) {
             Divider(color = MaterialTheme.colorScheme.outlineVariant)
             StatRow("No-Snooze Streak", "${report.noSnoozeStreak} days")
             Divider(color = MaterialTheme.colorScheme.outlineVariant)
-            StatRow("Wake Consistency", "${(report.wakeConsistencyScore * 100).toInt()}%")
+            StatRow("Wake Consistency", "${report.wakeConsistencyScore.toInt()}%")
 
             if (report.insights.isNotBlank()) {
                 Spacer(modifier = Modifier.height(Spacing.spacing2))
@@ -261,8 +261,13 @@ fun WeeklyReportCard(report: WeeklyReportEntity) {
 @Composable
 fun SleepSessionCard(session: SleepSessionEntity) {
     val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
-    val bedtime = dateFormat.format(Date(session.bedtimeMillis))
-    val wakeTime = dateFormat.format(Date(session.wakeTimeMillis))
+    val startTime = dateFormat.format(Date(session.sessionStartMillis))
+    val endTimeMillis = session.sessionEndMillis
+    val endTime = if (endTimeMillis != null) {
+        dateFormat.format(Date(endTimeMillis))
+    } else {
+        "In progress"
+    }
     val durationHours = session.durationMillis / (1000 * 60 * 60).toFloat()
 
     Card(
@@ -282,23 +287,36 @@ fun SleepSessionCard(session: SleepSessionEntity) {
                 verticalArrangement = Arrangement.spacedBy(Spacing.spacing1)
             ) {
                 Text(
-                    text = "$bedtime → $wakeTime",
+                    text = "$startTime → $endTime",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = if (session.wasManual) "Manual entry" else "Auto-tracked",
+                    text = when {
+                        session.wasManual -> "Manual entry"
+                        session.isLegacy -> "Estimated (legacy)"
+                        else -> "Auto-tracked"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Text(
-                text = "%.1fh".format(durationHours),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            if (endTimeMillis != null) {
+                Text(
+                    text = "%.1fh".format(durationHours),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            } else {
+                Text(
+                    text = "...",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

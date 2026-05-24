@@ -7,9 +7,16 @@ import androidx.room.PrimaryKey
 data class SleepSessionEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val bedtimeMillis: Long,
-    val wakeTimeMillis: Long,
+    val alarmId: Long,
+    val sessionStartMillis: Long,
+    val sessionEndMillis: Long?,
     val durationMillis: Long,
     val wasManual: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis()
+    val isLegacy: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis(),
+    // Legacy fields for backward compatibility
+    @Deprecated("Use sessionStartMillis instead")
+    val bedtimeMillis: Long = sessionStartMillis,
+    @Deprecated("Use sessionEndMillis instead")
+    val wakeTimeMillis: Long = sessionEndMillis ?: sessionStartMillis
 )

@@ -173,7 +173,7 @@ Aggregated into: daily stats, weekly report (Sunday), no-snooze streak.
 
 ---
 
-## Implementation Status (as of 2026-05-21)
+## Implementation Status (as of 2026-05-24)
 
 ### ✅ Complete Features
 - **Alarm Engine:** Create, edit, delete, schedule with AlarmManager
@@ -189,6 +189,7 @@ Aggregated into: daily stats, weekly report (Sunday), no-snooze streak.
   - "App Default" option that resolves to global default at alarm time
 - **Theme System:** Light/Dark/System modes, persistent preference, dynamic switching
 - **Statistics:** Event logging (AlarmFired, AlarmDismissed, AlarmSnoozed), daily/weekly aggregation, no-snooze streak
+- **Sleep Tracking:** Actual sleep session tracking from alarm enable to dismiss (replaces fake 8-hour estimation)
 - **Widget:** Home screen widget showing next alarm
 - **Timer:** Countdown with MM:SS display, sound on completion, wheel picker input
 - **Stopwatch:** Count-up with HH:MM:SS.MS display, lap tracking
@@ -200,6 +201,15 @@ Aggregated into: daily stats, weekly report (Sunday), no-snooze streak.
 ---
 
 ## Key Implementation Details
+
+### Sleep Session Tracking
+- **Session Start:** Automatically created when alarm is enabled or created
+- **Session End:** Completed when alarm is dismissed or snoozed
+- **Recurring Alarms:** Each occurrence creates a new independent sleep session
+- **Session Cancellation:** Pending sessions cancelled when alarm is disabled or deleted before ringing
+- **Legacy Support:** Old estimated sessions (bedtime - 8 hours) marked as `isLegacy = true`
+- **SleepSessionRepository:** Centralized repository in data layer for sleep session management
+- **Statistics Display:** Shows actual tracked duration, distinguishes between auto-tracked, manual, and legacy sessions
 
 ### Sound Persistence Architecture
 - **CustomSoundEntity:** Room entity storing custom sounds (id, name, uri, createdAt)
@@ -243,15 +253,20 @@ Aggregated into: daily stats, weekly report (Sunday), no-snooze streak.
 
 ---
 
-## Database Schema (Current Version: 5)
+## Database Schema (Current Version: 7)
 
 ### Key Entities
 - **AlarmEntity:** id, title, timeMillis, isEnabled, repeatDays (JSON), isCountdown, countdownDurationMillis, soundId, snoozeMinutes, preAlarmEnabled
 - **AlarmEventEntity:** id, alarmId, eventType, timestamp
 - **CustomSoundEntity:** id, name, uri, createdAt
 - **PreferencesEntity:** id, selectedSoundId, themeMode, updatedAt
-- **SleepSessionEntity:** id, startTime, endTime, duration, quality, notes
+- **SleepSessionEntity:** id, alarmId, sessionStartMillis, sessionEndMillis, durationMillis, wasManual, isLegacy, createdAt, bedtimeMillis (deprecated), wakeTimeMillis (deprecated)
 - **WeeklyReportEntity:** id, weekStartDate, totalAlarms, dismissedCount, snoozedCount, avgSnoozeCount, consistency, generatedAt
+
+### Migration 6 → 7
+- Added `alarmId`, `sessionStartMillis`, `sessionEndMillis`, `isLegacy` columns to `sleep_sessions`
+- Migrated existing data: `bedtimeMillis` → `sessionStartMillis`, `wakeTimeMillis` → `sessionEndMillis`
+- Legacy records marked with `isLegacy = true` for backward compatibility
 
 ---
 

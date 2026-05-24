@@ -3,6 +3,7 @@ package com.example.alarm.feature.stats
 import com.example.alarm.data.db.AlarmDatabase
 import com.example.alarm.data.db.entity.SleepSessionEntity
 import com.example.alarm.data.db.entity.WeeklyReportEntity
+import com.example.alarm.data.repository.SleepSessionRepository
 import kotlinx.coroutines.flow.Flow
 import java.util.Calendar
 import javax.inject.Inject
@@ -10,11 +11,11 @@ import javax.inject.Singleton
 
 @Singleton
 class StatsRepository @Inject constructor(
-    private val database: AlarmDatabase
+    private val database: AlarmDatabase,
+    private val sleepSessionRepository: SleepSessionRepository
 ) {
 
     private val alarmEventDao = database.alarmEventDao()
-    private val sleepSessionDao = database.sleepSessionDao()
     private val weeklyReportDao = database.weeklyReportDao()
 
     suspend fun getDailyStats(): AlarmStats {
@@ -88,35 +89,21 @@ class StatsRepository @Inject constructor(
     }
 
     suspend fun recordSleepSession(bedtimeMillis: Long, wakeTimeMillis: Long, wasManual: Boolean = false) {
-        val duration = wakeTimeMillis - bedtimeMillis
-        val session = SleepSessionEntity(
-            bedtimeMillis = bedtimeMillis,
-            wakeTimeMillis = wakeTimeMillis,
-            durationMillis = duration,
-            wasManual = wasManual
-        )
-        sleepSessionDao.insert(session)
-    }
-
-    suspend fun inferSleepSession(wakeTimeMillis: Long) {
-        // Infer bedtime as 8 hours before wake time (simple heuristic)
-        val estimatedBedtime = wakeTimeMillis - (8 * 60 * 60 * 1000)
-        recordSleepSession(estimatedBedtime, wakeTimeMillis, wasManual = false)
+        sleepSessionRepository.recordSleepSession(bedtimeMillis, wakeTimeMillis, wasManual)
     }
 
     suspend fun getAverageSleepDuration(daysBack: Int): Long? {
-        val startTime = System.currentTimeMillis() - (daysBack * 24 * 60 * 60 * 1000L)
-        return sleepSessionDao.getAverageSleepDuration(startTime)
+        return sleepSessionRepository.getAverageSleepDuration(daysBack)
     }
 
     fun getRecentSleepSessions(limit: Int): Flow<List<SleepSessionEntity>> {
-        return sleepSessionDao.getRecentSessionsFlow(limit)
+        return sleepSessionRepository.getRecentSleepSessions(limit)
     }
 
     suspend fun cleanupOldData() {
         val cutoffTime = System.currentTimeMillis() - (90 * 24 * 60 * 60 * 1000L) // 90 days
         alarmEventDao.deleteOldEvents(cutoffTime)
-        sleepSessionDao.deleteOldSessions(cutoffTime)
+        sleepSessionRepository.cleanupOldSessions()
         weeklyReportDao.deleteOldReports(cutoffTime)
     }
 }
