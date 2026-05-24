@@ -278,12 +278,14 @@ class TimerService : Service() {
         }
 
         val contentIntent = try {
+            val intent = Intent(this, Class.forName("com.example.alarm.MainActivity")).apply {
+                putExtra("navigate_to_tab", "timer")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
             PendingIntent.getActivity(
                 this,
                 0,
-                packageManager.getLaunchIntentForPackage(packageName)?.apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                } ?: Intent(),
+                intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         } catch (e: Exception) {

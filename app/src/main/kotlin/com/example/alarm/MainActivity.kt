@@ -53,8 +53,17 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    private val navigationTabState = mutableStateOf<BottomTab?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Parse intent to determine initial tab
+        val initialTab = parseNavigationIntent(intent)
+        navigationTabState.value = initialTab
+        android.util.Log.d(TAG, "onCreate: initialTab=$initialTab")
+
         setContent {
             val themeViewModel: ThemeViewModel = hiltViewModel()
             val themeMode by themeViewModel.themeMode.collectAsStateWithLifecycle(initialValue = "system")
@@ -70,10 +79,43 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AlarmApp(themeViewModel)
+                    AlarmApp(themeViewModel, navigationTabState)
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        android.util.Log.d(TAG, "onNewIntent: intent=$intent")
+        setIntent(intent)
+
+        // Parse navigation intent and update state
+        intent?.let {
+            val targetTab = parseNavigationIntent(it)
+            android.util.Log.d(TAG, "onNewIntent: targetTab=$targetTab")
+            if (targetTab != null) {
+                navigationTabState.value = targetTab
+            }
+        }
+    }
+
+    private fun parseNavigationIntent(intent: Intent?): BottomTab? {
+        val tabExtra = intent?.getStringExtra(EXTRA_NAVIGATE_TO_TAB)
+        android.util.Log.d(TAG, "parseNavigationIntent: tabExtra=$tabExtra")
+        return when (tabExtra) {
+            "timer" -> BottomTab.Timer
+            "stopwatch" -> BottomTab.Stopwatch
+            "stats" -> BottomTab.Stats
+            "settings" -> BottomTab.Settings
+            "alarms" -> BottomTab.Alarms
+            else -> null
+        }
+    }
+
+    companion object {
+        private const val TAG = "MainActivity"
+        const val EXTRA_NAVIGATE_TO_TAB = "navigate_to_tab"
     }
 }
 
@@ -86,10 +128,20 @@ enum class BottomTab(val label: String, val icon: ImageVector) {
 }
 
 @Composable
-fun AlarmApp(themeViewModel: ThemeViewModel) {
+fun AlarmApp(themeViewModel: ThemeViewModel, navigationTabState: MutableState<BottomTab?>) {
+    val requestedTab by navigationTabState
     var currentTab by remember { mutableStateOf(BottomTab.Alarms) }
     var currentScreen by remember { mutableStateOf<Screen>(Screen.AlarmList) }
     var editAlarmId by remember { mutableStateOf<Long?>(null) }
+
+    // Update currentTab when navigationTabState changes
+    LaunchedEffect(requestedTab) {
+        if (requestedTab != null) {
+            android.util.Log.d("AlarmApp", "Navigating to tab: $requestedTab")
+            currentTab = requestedTab!!
+            currentScreen = Screen.AlarmList
+        }
+    }
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
