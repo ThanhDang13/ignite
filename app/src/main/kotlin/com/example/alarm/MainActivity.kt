@@ -1,15 +1,22 @@
 package com.example.alarm
 
+import android.Manifest
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
@@ -17,16 +24,21 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.alarm.core.common.AlarmPermissionChecker
 import com.example.alarm.core.sound.AudioPlaybackManager
 import com.example.alarm.feature.alarm.AlarmListScreen
 import com.example.alarm.feature.alarm.CreateEditAlarmScreen
@@ -79,6 +91,40 @@ fun AlarmApp(themeViewModel: ThemeViewModel) {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.AlarmList) }
     var editAlarmId by remember { mutableStateOf<Long?>(null) }
 
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Track permission/restriction status. Recompute on resume because the
+    // user may flip system settings while the app is backgrounded.
+    var permissionStatus by remember {
+        mutableStateOf(AlarmPermissionChecker.status(context))
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                permissionStatus = AlarmPermissionChecker.status(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) {
+        permissionStatus = AlarmPermissionChecker.status(context)
+    }
+
+    // First-launch: prompt for POST_NOTIFICATIONS on Android 13+. Without
+    // this, the user has no way to know alarms will fail silently.
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !permissionStatus.hasNotificationPermission
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     Scaffold(
         bottomBar = {
             NavigationBar {
@@ -96,52 +142,162 @@ fun AlarmApp(themeViewModel: ThemeViewModel) {
             }
         }
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            when (currentTab) {
-                BottomTab.Alarms -> {
-                    when (currentScreen) {
-                        Screen.AlarmList -> {
-                            AlarmListScreen(
-                                onNavigateToCreate = {
-                                    editAlarmId = null
-                                    currentScreen = Screen.CreateEdit
-                                },
-                                onNavigateToEdit = { alarmId ->
-                                    editAlarmId = alarmId
-                                    currentScreen = Screen.CreateEdit
-                                }
-                            )
+            if (!permissionStatus.allGranted) {
+                PermissionWarningBanner(
+                    status = permissionStatus,
+                    onRequestNotifications = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
-                        Screen.CreateEdit -> {
-                            CreateEditAlarmScreen(
-                                alarmId = editAlarmId,
-                                onNavigateBack = {
-                                    currentScreen = Screen.AlarmList
-                                }
-                            )
+                    },
+                    onOpenExactAlarmSettings = {
+                        AlarmPermissionChecker.exactAlarmSettingsIntent(context)?.let {
+                            context.startActivity(it)
                         }
-                        Screen.Stats -> {}
+                    },
+                    onOpenBatterySettings = {
+                        context.startActivity(
+                            AlarmPermissionChecker.ignoreBatteryOptimizationIntent(context)
+                        )
+                    },
+                    onOpenNotificationSettings = {
+                        context.startActivity(
+                            AlarmPermissionChecker.appNotificationSettingsIntent(context)
+                        )
                     }
-                }
-                BottomTab.Timer -> {
-                    TimerScreen()
-                }
-                BottomTab.Stopwatch -> {
-                    StopwatchScreen()
-                }
-                BottomTab.Stats -> {
-                    StatsScreen(
-                        onNavigateBack = {
-                            currentTab = BottomTab.Alarms
+                )
+            }
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (currentTab) {
+                    BottomTab.Alarms -> {
+                        when (currentScreen) {
+                            Screen.AlarmList -> {
+                                AlarmListScreen(
+                                    onNavigateToCreate = {
+                                        editAlarmId = null
+                                        currentScreen = Screen.CreateEdit
+                                    },
+                                    onNavigateToEdit = { alarmId ->
+                                        editAlarmId = alarmId
+                                        currentScreen = Screen.CreateEdit
+                                    }
+                                )
+                            }
+                            Screen.CreateEdit -> {
+                                CreateEditAlarmScreen(
+                                    alarmId = editAlarmId,
+                                    onNavigateBack = {
+                                        currentScreen = Screen.AlarmList
+                                    }
+                                )
+                            }
+                            Screen.Stats -> {}
+                        }
+                    }
+                    BottomTab.Timer -> TimerScreen()
+                    BottomTab.Stopwatch -> StopwatchScreen()
+                    BottomTab.Stats -> StatsScreen(
+                        onNavigateBack = { currentTab = BottomTab.Alarms }
+                    )
+                    BottomTab.Settings -> SettingsPlaceholder(
+                        themeViewModel = themeViewModel,
+                        permissionStatus = permissionStatus,
+                        onRequestNotifications = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                context.startActivity(
+                                    AlarmPermissionChecker.appNotificationSettingsIntent(context)
+                                )
+                            }
+                        },
+                        onOpenExactAlarmSettings = {
+                            AlarmPermissionChecker.exactAlarmSettingsIntent(context)?.let {
+                                context.startActivity(it)
+                            }
+                        },
+                        onOpenBatterySettings = {
+                            context.startActivity(
+                                AlarmPermissionChecker.ignoreBatteryOptimizationIntent(context)
+                            )
                         }
                     )
                 }
-                BottomTab.Settings -> {
-                    SettingsPlaceholder(themeViewModel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionWarningBanner(
+    status: AlarmPermissionChecker.Status,
+    onRequestNotifications: () -> Unit,
+    onOpenExactAlarmSettings: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
+    onOpenNotificationSettings: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onErrorContainer
+                )
+                Text(
+                    "Alarms may not work reliably",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            if (!status.hasNotificationPermission) {
+                Text(
+                    "Notifications are blocked. Without them, alarm rings will not appear when the app is closed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+                TextButton(onClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        onRequestNotifications()
+                    } else {
+                        onOpenNotificationSettings()
+                    }
+                }) { Text("Enable notifications") }
+            }
+            if (!status.canScheduleExactAlarms) {
+                Text(
+                    "Exact alarms are disabled. Alarms will fire late or not at all.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+                TextButton(onClick = onOpenExactAlarmSettings) {
+                    Text("Allow exact alarms")
+                }
+            }
+            if (!status.isIgnoringBatteryOptimizations) {
+                Text(
+                    "Battery optimization is on. Android may pause this app and miss alarms after long idle periods.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+                TextButton(onClick = onOpenBatterySettings) {
+                    Text("Disable battery optimization")
                 }
             }
         }
@@ -150,14 +306,19 @@ fun AlarmApp(themeViewModel: ThemeViewModel) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsPlaceholder(themeViewModel: ThemeViewModel) {
+fun SettingsPlaceholder(
+    themeViewModel: ThemeViewModel,
+    permissionStatus: AlarmPermissionChecker.Status,
+    onRequestNotifications: () -> Unit,
+    onOpenExactAlarmSettings: () -> Unit,
+    onOpenBatterySettings: () -> Unit
+) {
     val settingsViewModel: SettingsViewModel = hiltViewModel()
     val audioPlaybackManager = settingsViewModel.audioPlaybackManager
     var showSoundDialog by remember { mutableStateOf(false) }
     var soundsRefreshTrigger by remember { mutableStateOf(0) }
     val currentThemeMode by themeViewModel.themeMode.collectAsStateWithLifecycle(initialValue = "system")
     var selectedSound by remember { mutableStateOf("default") }
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val preferencesRepository = themeViewModel.preferencesRepository
 
@@ -167,7 +328,6 @@ fun SettingsPlaceholder(themeViewModel: ThemeViewModel) {
         }
     }
 
-    // Load saved sound preference on compose
     LaunchedEffect(Unit) {
         scope.launch {
             val prefs = preferencesRepository.getPreferences()
@@ -189,6 +349,36 @@ fun SettingsPlaceholder(themeViewModel: ThemeViewModel) {
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(bottom = 24.dp)
         )
+
+        Text(
+            text = "Alarm reliability",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
+        PermissionRow(
+            label = "Notifications",
+            granted = permissionStatus.hasNotificationPermission,
+            actionLabel = "Enable",
+            onAction = onRequestNotifications
+        )
+        PermissionRow(
+            label = "Exact alarms",
+            granted = permissionStatus.canScheduleExactAlarms,
+            actionLabel = "Open settings",
+            onAction = onOpenExactAlarmSettings,
+            visible = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+        )
+        PermissionRow(
+            label = "Ignore battery optimization",
+            granted = permissionStatus.isIgnoringBatteryOptimizations,
+            actionLabel = "Disable",
+            onAction = onOpenBatterySettings
+        )
+
+        Spacer(Modifier.height(16.dp))
 
         Text(
             text = "Appearance",
@@ -314,31 +504,6 @@ fun SettingsPlaceholder(themeViewModel: ThemeViewModel) {
                 )
             }
         }
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "About",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "Smart Alarm Application",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-        }
     }
 
     if (showSoundDialog) {
@@ -375,6 +540,53 @@ fun SettingsPlaceholder(themeViewModel: ThemeViewModel) {
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun PermissionRow(
+    label: String,
+    granted: Boolean,
+    actionLabel: String,
+    onAction: () -> Unit,
+    visible: Boolean = true
+) {
+    if (!visible) return
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (granted) MaterialTheme.colorScheme.surface
+            else MaterialTheme.colorScheme.errorContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (granted) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onErrorContainer
+                )
+                Text(
+                    text = if (granted) "Granted" else "Not granted",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (granted) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            if (!granted) {
+                TextButton(onClick = onAction) { Text(actionLabel) }
+            }
+        }
     }
 }
 

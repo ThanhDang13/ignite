@@ -48,10 +48,12 @@
 
         <receiver
             android:name="com.example.alarm.data.scheduler.PreAlarmReceiver"
-            android:exported="true"
+            android:exported="false"
             android:enabled="true">
             <intent-filter>
+                <action android:name="com.example.alarm.PRE_ALARM_TRIGGER" />
                 <action android:name="com.example.alarm.DISMISS_PRE_ALARM" />
+                <action android:name="com.example.alarm.SKIP_ALARM" />
                 <action android:name="com.example.alarm.SNOOZE_PRE_ALARM" />
             </intent-filter>
         </receiver>
@@ -60,6 +62,20 @@
             android:name="com.example.alarm.feature.ring.RingService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback" />
+
+        <service
+            android:name="com.example.alarm.feature.timer.TimerService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <receiver
+            android:name="com.example.alarm.feature.ring.RingNotificationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.example.alarm.NOTIFICATION_DISMISS" />
+                <action android:name="com.example.alarm.NOTIFICATION_SNOOZE" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name="com.example.alarm.feature.widget.AlarmWidgetProvider"

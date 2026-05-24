@@ -116,32 +116,133 @@ class AlarmSchedulerImpl @Inject constructor(
             val preAlarmTimeMillis = triggerTimeMillis - (15 * 60 * 1000) // 15 minutes before
             val now = System.currentTimeMillis()
 
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+            Log.d("AlarmSchedulerImpl", "Scheduling pre-alarm for alarm $alarmId")
+            Log.d("AlarmSchedulerImpl", "  Current time: ${dateFormat.format(Date(now))}")
+            Log.d("AlarmSchedulerImpl", "  Pre-alarm time: ${dateFormat.format(Date(preAlarmTimeMillis))}")
+            Log.d("AlarmSchedulerImpl", "  Main alarm time: ${dateFormat.format(Date(triggerTimeMillis))}")
+
             if (preAlarmTimeMillis <= now) {
-                Log.d("AlarmSchedulerImpl", "Pre-alarm time is in the past, skipping")
+                Log.d("AlarmSchedulerImpl", "Pre-alarm time is in the past or very close, showing immediate notification")
+                // Pre-alarm window already passed or very close - show notification immediately
+                showImmediatePreAlarmNotification(alarmId, alarm.title, triggerTimeMillis)
                 return
             }
 
-            val delayMillis = preAlarmTimeMillis - now
-            val workData = Data.Builder()
-                .putLong("alarmId", alarmId)
-                .putString("alarmTitle", alarm.title)
-                .build()
+            val intent = Intent(context, PreAlarmReceiver::class.java).apply {
+                action = PreAlarmReceiver.ACTION_PRE_ALARM_TRIGGER
+                putExtra(PreAlarmReceiver.EXTRA_ALARM_ID, alarmId)
+                putExtra(PreAlarmReceiver.EXTRA_ALARM_TITLE, alarm.title)
+            }
 
-            val preAlarmWork = OneTimeWorkRequestBuilder<PreAlarmWorker>()
-                .setInitialDelay(delayMillis, TimeUnit.MILLISECONDS)
-                .setInputData(workData)
-                .addTag("pre_alarm_$alarmId")
-                .build()
-
-            WorkManager.getInstance(context).enqueueUniqueWork(
-                "pre_alarm_$alarmId",
-                ExistingWorkPolicy.REPLACE,
-                preAlarmWork
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                (alarmId.toInt() * 1000) + PreAlarmReceiver.PRE_ALARM_REQUEST_CODE_OFFSET,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            Log.d("AlarmSchedulerImpl", "Pre-alarm scheduled for alarm $alarmId in ${delayMillis / 1000} seconds")
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (alarmManager.canScheduleExactAlarms()) {
+                        alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            preAlarmTimeMillis,
+                            pendingIntent
+                        )
+                        Log.d("AlarmSchedulerImpl", "  Method: setExactAndAllowWhileIdle")
+                    } else {
+                        alarmManager.setAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            preAlarmTimeMillis,
+                            pendingIntent
+                        )
+                        Log.w("AlarmSchedulerImpl", "  Method: setAndAllowWhileIdle (exact alarm permission not granted)")
+                    }
+                } else {
+                    AlarmManagerCompat.setExactAndAllowWhileIdle(
+                        alarmManager,
+                        AlarmManager.RTC_WAKEUP,
+                        preAlarmTimeMillis,
+                        pendingIntent
+                    )
+                    Log.d("AlarmSchedulerImpl", "  Method: setExactAndAllowWhileIdle (compat)")
+                }
+                Log.d("AlarmSchedulerImpl", "Pre-alarm scheduled successfully for alarm $alarmId")
+            } catch (e: SecurityException) {
+                Log.e("AlarmSchedulerImpl", "SecurityException scheduling pre-alarm", e)
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    preAlarmTimeMillis,
+                    pendingIntent
+                )
+            }
         } catch (e: Exception) {
             Log.e("AlarmSchedulerImpl", "Error scheduling pre-alarm for $alarmId", e)
+        }
+    }
+
+    private fun showImmediatePreAlarmNotification(alarmId: Long, alarmTitle: String, mainAlarmTimeMillis: Long) {
+        try {
+            val dateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+            val timeString = dateFormat.format(Date(mainAlarmTimeMillis))
+
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+
+            // Build the pre-alarm notification using the same builder as PreAlarmReceiver
+            val dismissIntent = Intent(context, PreAlarmReceiver::class.java).apply {
+                action = PreAlarmReceiver.ACTION_DISMISS_PRE_ALARM
+                putExtra(PreAlarmReceiver.EXTRA_ALARM_ID, alarmId)
+            }
+            val dismissPi = PendingIntent.getBroadcast(
+                context,
+                (alarmId.toInt() * 1000) + 1,
+                dismissIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val skipIntent = Intent(context, PreAlarmReceiver::class.java).apply {
+                action = PreAlarmReceiver.ACTION_SKIP_ALARM
+                putExtra(PreAlarmReceiver.EXTRA_ALARM_ID, alarmId)
+            }
+            val skipPi = PendingIntent.getBroadcast(
+                context,
+                (alarmId.toInt() * 1000) + 2,
+                skipIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val snoozeIntent = Intent(context, PreAlarmReceiver::class.java).apply {
+                action = PreAlarmReceiver.ACTION_SNOOZE_PRE_ALARM
+                putExtra(PreAlarmReceiver.EXTRA_ALARM_ID, alarmId)
+            }
+            val snoozePi = PendingIntent.getBroadcast(
+                context,
+                (alarmId.toInt() * 1000) + 3,
+                snoozeIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val remainingMinutes = ((mainAlarmTimeMillis - System.currentTimeMillis()) / 60000).toInt()
+            val remainingText = if (remainingMinutes > 0) "in $remainingMinutes minutes" else "very soon"
+
+            val notification = androidx.core.app.NotificationCompat.Builder(context, "pre_alarm_channel")
+                .setContentTitle("$alarmTitle $remainingText")
+                .setContentText("Alarm scheduled for $timeString")
+                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setCategory(androidx.core.app.NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(androidx.core.app.NotificationCompat.VISIBILITY_PUBLIC)
+                .setAutoCancel(false)
+                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss", dismissPi)
+                .addAction(android.R.drawable.ic_delete, "Skip Alarm", skipPi)
+                .addAction(android.R.drawable.ic_menu_revert, "Remind Later", snoozePi)
+                .build()
+
+            notificationManager.notify(1002, notification) // NOTIFICATION_ID_PRE_ALARM
+            Log.d("AlarmSchedulerImpl", "Immediate pre-alarm notification shown for alarm $alarmId")
+        } catch (e: Exception) {
+            Log.e("AlarmSchedulerImpl", "Error showing immediate pre-alarm notification", e)
         }
     }
 
@@ -157,6 +258,19 @@ class AlarmSchedulerImpl @Inject constructor(
         )
         alarmManager.cancel(pendingIntent)
         Log.d("AlarmSchedulerImpl", "Cancelled alarm $alarmId")
+
+        // Also cancel pre-alarm
+        val preAlarmIntent = Intent(context, PreAlarmReceiver::class.java).apply {
+            action = PreAlarmReceiver.ACTION_PRE_ALARM_TRIGGER
+        }
+        val preAlarmPendingIntent = PendingIntent.getBroadcast(
+            context,
+            (alarmId.toInt() * 1000) + PreAlarmReceiver.PRE_ALARM_REQUEST_CODE_OFFSET,
+            preAlarmIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(preAlarmPendingIntent)
+        Log.d("AlarmSchedulerImpl", "Cancelled pre-alarm for alarm $alarmId")
     }
 
     override suspend fun rescheduleAll(): Unit = withContext(Dispatchers.Default) {

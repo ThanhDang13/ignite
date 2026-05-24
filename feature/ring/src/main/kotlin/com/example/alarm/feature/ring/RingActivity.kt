@@ -8,12 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import com.example.alarm.core.sound.AudioPlaybackManager
 import dagger.hilt.android.AndroidEntryPoint
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class RingActivity : ComponentActivity() {
@@ -21,12 +16,9 @@ class RingActivity : ComponentActivity() {
     @Inject
     lateinit var audioPlaybackManager: AudioPlaybackManager
 
-    private val activityScope = CoroutineScope(Dispatchers.Main + Job())
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Show over lock screen and other apps
         window.addFlags(
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
             WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
@@ -36,7 +28,6 @@ class RingActivity : ComponentActivity() {
             WindowManager.LayoutParams.FLAG_FULLSCREEN
         )
 
-        // For Android 10+, set layout in front of IME
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -54,17 +45,14 @@ class RingActivity : ComponentActivity() {
                     alarmTime = timeMillis,
                     showSnooze = !isTimer,
                     onDismiss = {
-                        activityScope.launch {
-                            audioPlaybackManager.stop()
-                            sendActionToService(ACTION_DISMISS, alarmId)
-                        }
+                        // Don't stop audio here directly. Let RingService own
+                        // the lifecycle so we don't have two paths racing to
+                        // release the same MediaPlayer.
+                        sendActionToService(RingService.ACTION_DISMISS, alarmId)
                         finish()
                     },
                     onSnooze = {
-                        activityScope.launch {
-                            audioPlaybackManager.stop()
-                            sendActionToService(ACTION_SNOOZE, alarmId)
-                        }
+                        sendActionToService(RingService.ACTION_SNOOZE, alarmId)
                         finish()
                     }
                 )
@@ -77,19 +65,8 @@ class RingActivity : ComponentActivity() {
             this.action = action
             putExtra("alarmId", alarmId)
         }
-        startService(intent)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        activityScope.launch {
-            audioPlaybackManager.stop()
-        }
-    }
-
-    companion object {
-        const val ACTION_DISMISS = "com.example.alarm.ACTION_DISMISS"
-        const val ACTION_SNOOZE = "com.example.alarm.ACTION_SNOOZE"
+        // Use startForegroundService so the system permits the service to
+        // start even when the screen is off / device is in Doze.
+        startForegroundService(intent)
     }
 }
-

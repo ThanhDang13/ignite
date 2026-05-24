@@ -46,6 +46,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.8.1")
     implementation(project(":core:ui"))
     implementation(project(":core:sound"))
+    implementation(project(":core:notification"))
     implementation(project(":data:alarm_repository"))
     implementation(project(":feature:ring"))
 }

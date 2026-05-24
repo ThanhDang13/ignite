@@ -200,7 +200,7 @@ fun TimerScreen(
                     .padding(bottom = Spacing.spacing6),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.spacing3)
             ) {
-                if (timerState.isRunning) {
+                if (timerState.isRunning && !timerState.isPaused) {
                     Button(
                         onClick = { viewModel.pause() },
                         modifier = Modifier
@@ -211,6 +211,18 @@ fun TimerScreen(
                         )
                     ) {
                         Text("Pause", style = MaterialTheme.typography.labelLarge)
+                    }
+                } else if (timerState.isPaused) {
+                    Button(
+                        onClick = { viewModel.resume() },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(Spacing.spacing8),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text("Resume", style = MaterialTheme.typography.labelLarge)
                     }
                 } else if (timerState.remainingMillis > 0) {
                     Button(
@@ -224,22 +236,16 @@ fun TimerScreen(
                     ) {
                         Text("Start", style = MaterialTheme.typography.labelLarge)
                     }
-                } else {
-                    Button(
-                        onClick = { viewModel.stopSound() },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(Spacing.spacing8),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Text("Stop", style = MaterialTheme.typography.labelLarge)
-                    }
                 }
 
                 Button(
-                    onClick = { viewModel.reset() },
+                    onClick = {
+                        if (timerState.isRunning || timerState.isPaused) {
+                            viewModel.cancel()
+                        } else {
+                            viewModel.reset()
+                        }
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .height(Spacing.spacing8),
@@ -247,7 +253,10 @@ fun TimerScreen(
                         containerColor = MaterialTheme.colorScheme.tertiary
                     )
                 ) {
-                    Text("Reset", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        if (timerState.isRunning || timerState.isPaused) "Cancel" else "Reset",
+                        style = MaterialTheme.typography.labelLarge
+                    )
                 }
             }
 
