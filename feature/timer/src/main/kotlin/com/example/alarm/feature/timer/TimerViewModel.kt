@@ -29,20 +29,28 @@ class TimerViewModel @Inject constructor(
 
     private val timerTickReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == TimerService.BROADCAST_TIMER_TICK) {
-                val remaining = intent.getLongExtra(TimerService.EXTRA_REMAINING_MILLIS, 0L)
-                val paused = intent.getBooleanExtra(TimerService.EXTRA_IS_PAUSED, false)
-                val current = _timerState.value
-                _timerState.value = current.copy(
-                    remainingMillis = remaining,
-                    isPaused = paused
-                )
+            when (intent?.action) {
+                TimerService.BROADCAST_TIMER_TICK -> {
+                    val remaining = intent.getLongExtra(TimerService.EXTRA_REMAINING_MILLIS, 0L)
+                    val paused = intent.getBooleanExtra(TimerService.EXTRA_IS_PAUSED, false)
+                    val current = _timerState.value
+                    _timerState.value = current.copy(
+                        remainingMillis = remaining,
+                        isPaused = paused
+                    )
+                }
+                TimerService.BROADCAST_TIMER_RESET -> {
+                    _timerState.value = TimerState()
+                }
             }
         }
     }
 
     init {
-        val filter = IntentFilter(TimerService.BROADCAST_TIMER_TICK)
+        val filter = IntentFilter().apply {
+            addAction(TimerService.BROADCAST_TIMER_TICK)
+            addAction(TimerService.BROADCAST_TIMER_RESET)
+        }
         context.registerReceiver(timerTickReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
     }
 

@@ -141,6 +141,13 @@ class TimerService : Service() {
         sendBroadcast(intent)
     }
 
+    private fun broadcastTimerReset() {
+        val intent = Intent(BROADCAST_TIMER_RESET).apply {
+            setPackage(packageName)
+        }
+        sendBroadcast(intent)
+    }
+
     private fun cancelTimer() {
         Log.d(TAG, "cancelTimer")
         stopUpdateLoop()
@@ -160,6 +167,7 @@ class TimerService : Service() {
         try {
             NotificationManagerCompat.from(this).cancel(NOTIFICATION_ID_TIMER)
         } catch (_: Throwable) {}
+        broadcastTimerReset()
         stopSelf()
     }
 
@@ -206,7 +214,6 @@ class TimerService : Service() {
         }
 
         showTimeUpNotification()
-        openRingActivity()
     }
 
     private fun startVibration() {
@@ -231,24 +238,6 @@ class TimerService : Service() {
             vibrator?.cancel()
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping vibration", e)
-        }
-    }
-
-    private fun openRingActivity() {
-        val ringIntent = Intent(this, RingActivity::class.java).apply {
-            putExtra("alarmId", -1L)
-            putExtra("title", "Timer")
-            putExtra("timeMillis", System.currentTimeMillis())
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                Intent.FLAG_ACTIVITY_SINGLE_TOP
-            )
-        }
-        try {
-            startActivity(ringIntent)
-        } catch (t: Throwable) {
-            Log.e(TAG, "openRingActivity failed", t)
         }
     }
 
@@ -425,6 +414,7 @@ class TimerService : Service() {
         const val EXTRA_DURATION_MILLIS = "durationMillis"
 
         const val BROADCAST_TIMER_TICK = "com.example.alarm.timer.TIMER_TICK"
+        const val BROADCAST_TIMER_RESET = "com.example.alarm.timer.TIMER_RESET"
         const val EXTRA_REMAINING_MILLIS = "remainingMillis"
         const val EXTRA_IS_PAUSED = "isPaused"
     }
