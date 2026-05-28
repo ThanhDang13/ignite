@@ -36,6 +36,7 @@ fun TimerScreen(
             selectedHours = 0
             selectedMinutes = 1
             selectedSeconds = 0
+            prevRemainingMillis = 0L
         }
     }
 

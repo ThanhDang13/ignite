@@ -36,10 +36,12 @@ class TimerViewModel @Inject constructor(
                     val current = _timerState.value
                     _timerState.value = current.copy(
                         remainingMillis = remaining,
-                        isPaused = paused
+                        isPaused = paused,
+                        isRunning = !paused && remaining > 0
                     )
                 }
                 TimerService.BROADCAST_TIMER_RESET -> {
+                    android.util.Log.d("TimerViewModel", "Received BROADCAST_TIMER_RESET")
                     _timerState.value = TimerState()
                 }
             }

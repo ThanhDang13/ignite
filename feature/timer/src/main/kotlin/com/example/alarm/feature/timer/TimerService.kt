@@ -155,6 +155,7 @@ class TimerService : Service() {
         try {
             NotificationManagerCompat.from(this).cancel(NOTIFICATION_ID_TIMER)
         } catch (_: Throwable) {}
+        broadcastTimerReset()
         stopSelf()
     }
 
